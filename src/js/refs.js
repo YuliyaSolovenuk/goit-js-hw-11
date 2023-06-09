@@ -1,7 +1,7 @@
 const refs = {
-    galleryList: document.querySelector('.js-gallery'),
-    container: document.querySelector('#tui-pagination-container'),
-    form: document.querySelector('.js-search-form'),
-}
+  galleryList: document.querySelector('.gallery'),
+  form: document.querySelector('.search-form'),
+  buttonLoadMore: document.querySelector('.load-more')
+};
 
 export default refs;

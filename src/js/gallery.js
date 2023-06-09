@@ -1,130 +1,96 @@
-import { UnsplashAPI } from './UnsplashAPI'
-import createGalleryCard from '../templates/gallery-card.hbs'
-import refs from './refs'
-import Pagination from 'tui-pagination'
-import 'tui-pagination/dist/tui-pagination.css'
+import { PixabayAPI } from './PixabayAPI';
+import refs from './refs';
+import Notiflix from 'notiflix';
+import SimpleLightbox from 'simplelightbox';
+import 'simplelightbox/dist/simple-lightbox.min.css';
 
-/**
-  |============================
-  | Імпортуй свою API і напиши фу-цію "onRenderPage()", яка буде робити запит на сервер і вона ж відрендерить розмітку. Пробуй використовувати модульний підхід
-  | можешь окремо строрити файл з розміткою і потім його імпортувати для використання. Також можешь використати шаблонізатор. Ментор тобі в цьому допоможе ; )
-  | 
-  | Після того коли ми успішно виконали рендер данних з бекенду, передай наступному учаснику виконання наступного функціоналу. Нам потрібно перейти на сайт бібліотеки
-  | і підключити пагінацію - https://www.npmjs.com/package/tui-pagination - Бібліотека "tui-pagination".
-  |
-  | Після успішного підключення пагінації передай виконання на наступного учасника. Далі нам потрібно створити новий запит за картинками по ключовому слову. Переходь
-  | в UnsplashAPI.
-  |
-  | Ось і готовий наш другий запит, давай його випробуємо! У нас з вами тут є тег "form", давайте його використаєм, знайдемо його у Дом дереві і повісимо слуха події
-  | ви знаєте яка подія повинна бути) Ну і наостанок напишемо callBack для неї "onSearchFormSubmit()", там де зробимо головну логіку. Після рендера далі дорозберемось 
-  | з нашою пагінація, цікаво як вона себе буде поводитись після зміни запиту?
-  |
-  | Якщо у нас залишився час, давате підключимо перемикач теми. Він знаходиться у файлі "isChangeTheme.js".
-  |============================
-*/
+Notiflix.Notify.init({
+  width: '500px',
+  position: 'left-top',
+});
+
+let page = 1;
+const pixabayApi = new PixabayAPI();
+ var lightbox = new SimpleLightbox('.gallery a', { captionDelay: 250 });
+
 refs.form.addEventListener('submit', onSearchFormSubmit);
+refs.buttonLoadMore.addEventListener('click', onClickLoadMore);
 
-const options = { 
-  totalItems: 5,
-  itemsPerPage: 12,
-  visiblePages: 5,
-  page: 1,
-  };
-
-const unsplashApi = new UnsplashAPI()
-const pagination = new Pagination(refs.container, options);
-
-const page = pagination.getCurrentPage();
-onRenderPage(page)
-
-
-async function onRenderPage(page) {
- 
-  try {
-
-    const response = await unsplashApi.getPopularPhotos(page)
-    refs.galleryList.innerHTML = createGalleryCard(response.data.results)
-    console.log(response.data.total);
-    refs.container.classList.remove('is-hidden');
-
-    
-    pagination.reset(response.data.total);
-  } catch(error) {
-    console.log(error);
-   }
-  
-}
-
-async function createPopularPagination(event) {
-  const currentPage = event.page;
-  console.log(currentPage);
+async function onClickLoadMore() {
+  refs.buttonLoadMore.classList.add('.is-hidden');
+  page += 1;
+  pixabayApi.page = page;
 
   try {
+    const response = await pixabayApi.getPhotosByQuery(page);
+    refs.buttonLoadMore.classList.remove('is-hidden');
+    let dataByQuery = response.data.hits;
+    let currentAmountPhotos = response.data.hits.length * page;
+    const totalPhotos = response.data.totalHits;
+    console.log(currentAmountPhotos);
+    console.log(totalPhotos);
 
-    const response = await unsplashApi.getPopularPhotos(currentPage)
-    refs.galleryList.innerHTML = createGalleryCard(response.data.results)
-    console.log(response.data.total);
-    
-  } catch(error) {
+    renderMarkupGallery(dataByQuery);
+    if (totalPhotos > currentAmountPhotos) {
+      refs.buttonLoadMore.classList.remove('is-hidden');
+    } else {
+      refs.buttonLoadMore.classList.add('is-hidden');
+      Notiflix.Notify.warning("We're sorry, but you've reached the end of search results.");
+    }
+  } catch (error) {
     console.log(error);
-   }
+  }
 }
 
-
-pagination.on('afterMove', createPopularPagination);
-
-
-async function onSearchFormSubmit(event){
+async function onSearchFormSubmit(event) {
   event.preventDefault();
-  pagination.off('afterMove', createPopularPagination);
-
-  const searchQuery = event.currentTarget.elements['user-search-query'].value.trim();
-  console.log(searchQuery);
+  let searchQuery = event.currentTarget.elements['searchQuery'].value.trim();
   
-  unsplashApi.query = searchQuery;
+  if (!searchQuery.trim() || searchQuery === pixabayApi.query) {
+    return;
+  }
+  pixabayApi.query = searchQuery;
+  page = 1;
+  
+  try {
+    // refs.loader.classList.add('.is-hidden');
+    const response = await pixabayApi.getPhotosByQuery(page);
+    refs.galleryList.innerHTML = '';
+    console.log("hello");
+    
+    const totalPhotos = response.data.totalHits;
+    let currentAmountPhotos = response.data.hits.length * page;
+    let dataByQuery = response.data.hits;
 
-  if (!searchQuery) {
-    return alert('Error')
+    if (response.data.totalHits === 0) {
+      Notiflix.Notify.failure(
+        'Sorry, there are no images matching your search query. Please try again.'
+      );
+    }
+
+    Notiflix.Notify.success(`Hooray! We found ${totalPhotos} images.`);
+    renderMarkupGallery(dataByQuery);
+
+    if (totalPhotos > currentAmountPhotos) {
+      refs.buttonLoadMore.classList.remove('is-hidden');
+    } else {
+      refs.buttonLoadMore.classList.add('is-hidden');
+      Notiflix.Notify.warning("We're sorry, but you've reached the end of search results.");
+    }
+  } catch (error) {
+    console.log(error);
   }
 
-  try {
-
-    const response = await unsplashApi.getPhotosByQuery(page)
-    refs.galleryList.innerHTML = '';
-
-    
-
-    refs.galleryList.innerHTML = createGalleryCard(response.data.results)
-    pagination.reset(response.data.total)
-    // console.log(response.data.total);
-    pagination.on('afterMove', createByQueryPagination);
-
-    if (response.data.total < 12) {
-      refs.container.classList.add('is-hidden');
-    } else {
-      refs.container.classList.remove('is-hidden');
-    }
-    
-    console.log(response.data.total);
-    
-  } catch(error) {
-    console.log(error);
-   }
-
-
+  refs.form.reset();
 }
 
-async function createByQueryPagination(event) {
-  const currentPage = event.page;
-  console.log(currentPage);
-
-  try {
-
-    const response = await unsplashApi.getPhotosByQuery(currentPage)
-    refs.galleryList.innerHTML = createGalleryCard(response.data.results)
-    console.log(response.data.total);
-    
-  } catch(error) {
-    console.log(error);
-   }
+function renderMarkupGallery(res) {
+  const markup = res
+    .map(el => {
+      return `<div class="photo-card"><div class="gallery"><a class="gallery__link" href="${el.largeImageURL}"><img class="gallery-img" src="${el.webformatURL}" alt="${el.tags}" loading="lazy"/></a></div><div class="info"><p class="info-item"><b>Likes</b><br>${el.likes}</br></p><p class="info-item"><b>Views</b><br>${el.views}</br></p><p class="info-item"><b>Comments</b><br>${el.comments}</br></p><p class="info-item"><b>Downloads</b><br>${el.downloads}</br></p></div></div>`;
+    })
+    .join('');
+  refs.galleryList.insertAdjacentHTML('beforeend', markup);
+  
+  lightbox.refresh();
 }
