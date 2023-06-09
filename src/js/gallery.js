@@ -42,6 +42,9 @@ async function onClickLoadMore() {
         "We're sorry, but you've reached the end of search results."
       );
     }
+    
+    smoothGalleryScroll()
+
   } catch (error) {
     console.log(error);
   }
@@ -86,6 +89,7 @@ async function onSearchFormSubmit(event) {
         "We're sorry, but you've reached the end of search results."
       );
     }
+    
   } catch (error) {
     console.log(error);
   }
@@ -102,4 +106,16 @@ function renderMarkupGallery(res) {
   refs.galleryList.insertAdjacentHTML('beforeend', markup);
 
   lightbox.refresh();
+}
+
+function smoothGalleryScroll() {
+
+  const { height: cardHeight } = document
+    .querySelector(".gallery")
+    .firstElementChild.getBoundingClientRect();
+
+  window.scrollBy({
+    top: cardHeight * 2,
+    behavior: "smooth",
+  });
 }
